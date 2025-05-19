@@ -1,100 +1,109 @@
-# Hello World Solana (Anchor)
+# 👋 Hello World Solana Program (Anchor)
 
-This is a simple **Solana smart contract** (program) built using the [Anchor framework](https://book.anchor-lang.com/) that demonstrates basic account initialization and data update on-chain.
-
-## 🧠 Overview
-
-The `hello_world_solana` program stores a simple `String` message on-chain using a custom `HelloWorldAccount`. It provides two main instructions:
-
-- `initialize`: Creates the account and sets the initial message.
-- `update`: Allows the user to update the message stored in the account.
-
-## 🧾 Program Instructions
-
-### 📦 `initialize(ctx, message: String)`
-
-- **Purpose**: Creates and initializes a new `HelloWorldAccount` with a message.
-- **Accounts**:
-  - `hello_world_account` - The new account to store the message.
-  - `user` - The signer and payer of the transaction.
-  - `system_program` - Solana system program required for account creation.
-
-### ✏️ `update(ctx, new_message: String)`
-
-- **Purpose**: Updates the message in an existing `HelloWorldAccount`.
-- **Accounts**:
-  - `hello_world_account` - The account that holds the current message.
-  - `user` - The signer paying the transaction fee (not necessarily the owner).
-
-## 🧱 Account Structure
-
-```rust
-#[account]
-pub struct HelloWorldAccount {
-    pub message: String,
-}
-````
-
-> In the `Initialize` instruction, the space allocated is `8 + 32` bytes. Adjust if you expect longer messages.
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-* [Rust + Cargo](https://www.rust-lang.org/tools/install)
-* [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools)
-* [Anchor CLI](https://www.anchor-lang.com/docs/installation)
-
-### Build the Program
-
-```bash
-anchor build
-```
-
-### Deploy the Program
-
-To localnet:
-
-```bash
-anchor localnet
-```
-
-To devnet:
-
-```bash
-anchor deploy --provider.cluster devnet
-```
-
-### Run Tests (if implemented)
-
-```bash
-anchor test
-```
-
-## 📁 Project Structure
-
-```
-├── Anchor.toml                      # Anchor configuration file
-├── programs/
-│   └── hello_world_solana/
-│       └── src/lib.rs              # Smart contract source code
-├── tests/
-│   └── hello_world_solana.ts      # Test file (optional)
-└── migrations/                     # Deployment scripts
-```
-
-## ✅ TODOs
-
-* [ ] Add test cases in `tests/hello_world_solana.ts`
-* [ ] Create a simple web frontend (React + Solana Wallet Adapter)
-* [ ] Adjust account space to support dynamic message sizes
-
-## 📚 References
-
-* [Solana Documentation](https://docs.solana.com/)
-* [Anchor Book](https://book.anchor-lang.com/)
-* [Rust Docs](https://doc.rust-lang.org/)
+This is a simple Solana smart contract using the [Anchor framework](https://book.anchor-lang.com/) that stores a **message on-chain**. The contract supports updating the message and allows the account to be **closed only when the message is `"finalize"`**.
 
 ---
 
-MIT License © 2025
+## 🧰 Features
+
+- 🟢 Initialize a message account.
+- ✏️ Update the message with any new string.
+- 🔐 Finalize (close) the account only if the message is `"finalize"`.
+- 🔁 Lamports are refunded to the user upon finalization.
+
+---
+
+## 💡 Usage Guide
+
+### 1. `initialize(message: String)`
+Creates a new on-chain account to store a string message.
+
+- 🔐 Requires `user` signature (payer).
+- 💰 Allocates space for the message.
+
+```ts
+await program.methods
+  .initialize("Hello Solana")
+  .accounts({
+    helloWorldAccount: account.publicKey,
+    user: wallet.publicKey,
+    systemProgram: SystemProgram.programId,
+  })
+  .signers([account])
+  .rpc();
+````
+
+---
+
+### 2. `update(new_message: String)`
+
+Updates the stored message with a new value.
+
+* ✅ Requires `user` signature.
+
+```ts
+await program.methods
+  .update("New message")
+  .accounts({
+    helloWorldAccount: account.publicKey,
+    user: wallet.publicKey,
+  })
+  .rpc();
+```
+
+---
+
+### 3. `finalize()`
+
+Closes the account **only if the message is `"finalize"`**, transferring rent lamports back to the user.
+
+* ❗ Throws `InvalidFinalizationMessage` if message is not `"finalize"`.
+* 🧹 Frees on-chain space and refunds lamports.
+
+```ts
+await program.methods
+  .finalize()
+  .accounts({
+    helloWorldAccount: account.publicKey,
+    user: wallet.publicKey,
+  })
+  .rpc();
+```
+
+---
+
+## 🗃️ Account Structure
+
+### `HelloWorldAccount`
+
+| Field     | Type   | Description         |
+| --------- | ------ | ------------------- |
+| `message` | String | Stored message text |
+
+---
+
+## ❗ Custom Errors
+
+* `InvalidFinalizationMessage`: Triggered if `finalize()` is called and the stored message is not `"finalize"`.
+
+---
+
+## 🧪 Testing Tips
+
+* Test `initialize()` with a variety of message lengths.
+* Try calling `finalize()` with and without setting the message to `"finalize"`.
+* Use `update()` to overwrite existing messages multiple times.
+
+---
+
+## 🧱 Built With
+
+* [Solana](https://solana.com/)
+* [Anchor Framework](https://github.com/coral-xyz/anchor)
+* [Rust](https://www.rust-lang.org/)
+
+---
+
+## 📜 License
+
+MIT — Use freely, fork, and build your own variations!
