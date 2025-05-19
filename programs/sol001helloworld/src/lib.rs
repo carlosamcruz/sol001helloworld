@@ -17,6 +17,15 @@ pub mod hello_world_solana {
         ctx.accounts.hello_world_account.message = new_message;
         Ok(())
     }
+
+    pub fn finalize(ctx: Context<Finalize>) -> Result<()> {
+        let hello_account = &ctx.accounts.hello_world_account;
+        // Check that the message is exactly "finalize"
+        require!(hello_account.message == "finalize", CustomError::InvalidFinalizationMessage);
+        // When this function completes, the `#[account(close = user)]`
+        // attribute automatically closes the account.
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -35,7 +44,21 @@ pub struct Update<'info> {
     pub user: Signer<'info>, // Só para pagar a taxa de transação
 }
 
+#[derive(Accounts)]
+pub struct Finalize<'info> {
+    #[account(mut, close = user)]
+    pub hello_world_account: Account<'info, HelloWorldAccount>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+}
+
 #[account]
 pub struct HelloWorldAccount {
     pub message: String,
+}
+
+#[error_code]
+pub enum CustomError {
+    #[msg("The account message must be 'finalize' to finalize (close) the account.")]
+    InvalidFinalizationMessage,
 }
