@@ -1,7 +1,7 @@
 //import assert from "assert";
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Sol001helloworld } from "../target/types/sol001helloworld";
+//import { Sol001helloworld } from "../target/types/sol001helloworld";
 import { HelloWorldSolana } from "../target/types/hello_world_solana";
 import { assert, expect } from "chai";
 
@@ -18,11 +18,26 @@ describe("HelloWorldSolana Tests", () => {
   const helloWorldAccount = anchor.web3.Keypair.generate();
   const account2 = anchor.web3.Keypair.generate();
  
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  async function airdrop(pubkey: anchor.web3.PublicKey, lamports = 2e9) {
+    // 2 SOL em devnet; ajuste se o faucet limitar a 1 SOL
+    const { blockhash, lastValidBlockHeight } = await provider.connection.getLatestBlockhash();
+    const sig = await provider.connection.requestAirdrop(pubkey, lamports);
+    await provider.connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  }
+  before(async () => {
+    // Necessário se estiver em devnet (ou local validator desligado)
+    await airdrop(account2.publicKey, 1e9);
+    await airdrop(helloWorldAccount.publicKey, 1e9);
+  });
+
   //testes vão aqui
 
   //Este teste inicializa conta de dados do HelloWorld que será usada no teste seguinte
   it("Hello World initialize", async () => {
-    const testMessage = "Hello World";
+    const testMessage = "Hello SVM";
 
     console.log("Account Program: ", program.programId);
 
@@ -34,15 +49,19 @@ describe("HelloWorldSolana Tests", () => {
     let tx = await program.methods.initialize(testMessage)
       .accounts({
         helloWorldAccount: helloWorldAccount.publicKey,
-        user: anchor.getProvider().publicKey
-        //user: account2.publicKey
+        //user: anchor.getProvider().publicKey
+        initializer: account2.publicKey
       })
-      .signers([helloWorldAccount])
+      .signers([helloWorldAccount, account2])
       .rpc();
   
     const account = await program.account.helloWorldAccount.fetch(helloWorldAccount.publicKey);
     assert.ok(account.message === testMessage);
+
+    console.log("Recorded owner:", account.owner.toBase58());
   });
+
+
 
 
   //Precisa que a conta de dados do HelloWorld tenha sido inicializada anteriormente
@@ -71,7 +90,7 @@ describe("HelloWorldSolana Tests", () => {
         .finalize()
         .accounts({
           helloWorldAccount: helloWorldAccount.publicKey,
-          user: anchor.getProvider().publicKey,
+          owner: anchor.getProvider().publicKey,
         })
         .rpc();
       
@@ -84,7 +103,7 @@ describe("HelloWorldSolana Tests", () => {
 
   });
 
-  it("Should finalize the contract", async () => {  
+  it("Should NOT finalize the contract (Not Owner)", async () => {  
 
     //Update to finalize the contract
     const testMessage = "finalize";
@@ -102,12 +121,33 @@ describe("HelloWorldSolana Tests", () => {
     const account = await program.account.helloWorldAccount.fetch(helloWorldAccount.publicKey);
     assert.ok(account.message === testMessage);
 
+    try {
+      await program.methods
+        .finalize()
+        .accounts({
+          helloWorldAccount: helloWorldAccount.publicKey,
+          owner: anchor.getProvider().publicKey,
+        })
+        .rpc();
+      
+      // If we got here, the call didn't fail as expected
+      assert.fail("Expected transaction to be reverted due to wrong message");
+    } catch (err: any) {
+      // Optional: check specific Anchor error code or message
+      expect(err.message).to.include("Only the owner can perform this action.");
+    }
+  });
+
+  it("Should finalize the contract", async () => {  
+
+
     await program.methods
       .finalize()
       .accounts({
         helloWorldAccount: helloWorldAccount.publicKey,
-        user: anchor.getProvider().publicKey,
+        owner: account2.publicKey,
       })
+      .signers([account2])
       .rpc();
 
     // ✅ Do not try to fetch the account now.

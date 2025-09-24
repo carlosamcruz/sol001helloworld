@@ -9,7 +9,13 @@ pub mod hello_world_solana {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>, message: String) -> Result<()> {
-        ctx.accounts.hello_world_account.message = message;
+        //ctx.accounts.hello_world_account.message = message;
+
+        let acct = &mut ctx.accounts.hello_world_account;
+        acct.owner = ctx.accounts.initializer.key();
+        acct.message = message;
+
+
         Ok(())
     }
 
@@ -19,9 +25,14 @@ pub mod hello_world_solana {
     }
 
     pub fn finalize(ctx: Context<Finalize>) -> Result<()> {
-        let hello_account = &ctx.accounts.hello_world_account;
+        let acct = &ctx.accounts.hello_world_account;
+        //let hello_account = &ctx.accounts.hello_world_account;
         // Check that the message is exactly "finalize"
-        require!(hello_account.message == "finalize", CustomError::InvalidFinalizationMessage);
+        require!(acct.message == "finalize", CustomError::InvalidFinalizationMessage);
+      
+        // Enforce owner-only
+        require_keys_eq!(ctx.accounts.owner.key(), acct.owner, CustomError::NotOwner);
+
         // When this function completes, the `#[account(close = user)]`
         // attribute automatically closes the account.
         Ok(())
@@ -30,10 +41,10 @@ pub mod hello_world_solana {
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = user, space = 8 + 32)]
+    #[account(init, payer = initializer, space = 256)]
     pub hello_world_account: Account<'info, HelloWorldAccount>,
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub initializer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -46,19 +57,23 @@ pub struct Update<'info> {
 
 #[derive(Accounts)]
 pub struct Finalize<'info> {
-    #[account(mut, close = user)]
+    #[account(mut, close = owner)]
     pub hello_world_account: Account<'info, HelloWorldAccount>,
+    /// Owner must sign; rent refunded here
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub owner: Signer<'info>,
 }
 
 #[account]
 pub struct HelloWorldAccount {
+    pub owner: Pubkey,
     pub message: String,
 }
 
 #[error_code]
 pub enum CustomError {
+    #[msg("Only the owner can perform this action.")]
+    NotOwner,
     #[msg("The account message must be 'finalize' to finalize (close) the account.")]
     InvalidFinalizationMessage,
 }
